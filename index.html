@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <body>
-<!--  
+<!--
 ### need ghostscript and php on the server to function
 ### the website will have a standard upload functionality that will check that the file is a pdf file
 ### if true the file is uploaded and an script (tr-pdfshrink.sh) is called
@@ -11,21 +11,20 @@
 ### all files will get a prefix "000pm-" where 0000 will be counted up
 -->
 
-<form action="index.php" method="post" enctype="multipart/form-data">
+<form method="post" enctype="multipart/form-data">
     Select image to upload:
     <input type="file" name="fileToUpload1" id="fileToUpload1">
     <input type="file" name="fileToUpload2" id="fileToUpload2">
     <fieldset>
-			<input type="radio" id="ps" name="function" value="pdf-shrink">
-			<label for="ps"> pdf-shrink</label>
-			<br>
-			<input type="radio" id="pdm" name="function" value="pdf-duplex-merge">
-			<label for="pdm"> pdf-duplex-merge</label>
-		</fieldset>
+                        <input type="radio" id="ps" name="function" value="ps">
+                        <label for="ps"> pdf-shrink</label>
+                        <br>
+                        <input type="radio" id="pdm" name="function" value="pdm">
+                        <label for="pdm"> pdf-duplex-merge</label>
+                </fieldset>
     <input type="submit" value="Upload & Convert PDF" name="submit">
 </form>
 <br>
-
 
 <?php
 $target_dir = "uploads/";
@@ -35,62 +34,76 @@ ob_end_flush();
 chdir($target_dir);
 
 if(isset($_POST["submit"])) {
-        if ($_FILES["fileToUpload1"]["type"] <> "application/pdf"){
+        if ($_POST["function"]=="ps"){
+                        $file1 = uploadFile($_FILES["fileToUpload1"]);
+                                if ($file1)
+                                echo "<br>".$file1.".pdf uploaded successfully";
+                                echo "<br>"."converting file ---> ";
+                                $output = shell_exec("tr-pdfshrink.sh " . $file1.".pdf");
+                                if (file_exists($file1."_small.pdf")){
+                                        echo "successful";
+                                        $link= "<a href=\"".$target_dir . $file1. "_small.pdf\">".$file1. "_small.pdf</a>";
+                                        echo "<br>".$link;
+                                } else {
+                                        echo "FAILURE!";
+                        }
+                }
+
+                if ($_POST["function"]=="pdm"){ //pdf-duplex-merge
+                        $file1 = uploadFile($_FILES["fileToUpload1"]);
+                        if ($file1)
+                                echo "<br>".$file1.".pdf uploaded successfully";
+                        $file2 = uploadFile($_FILES["fileToUpload2"]);
+                        if ($file2)
+                                echo "<br>".$file2.".pdf uploaded successfully";
+                        $fileMerged = date("ymd-His") . "-merged.pdf";
+                        echo "<br>"."merging files ---> ";
+                        $output = shell_exec("pdftk A=".$file1.".pdf B=".$file2.".pdf shuffle A Bend-1 output ".$fileMerged);
+            // echo "<pre>$output</pre>";
+                        if (file_exists($fileMerged)){
+                                echo "successful";
+                                $link= "<a href=\"".$target_dir . $fileMerged . "\">".$fileMerged. "</a>";
+                                echo "<br>".$link;
+                        } else {
+                                echo "FAILURE!";
+                        }
+                }
+}
+
+function uploadFile( $obj1 ){
+  debug_to_console($obj1["name"]);
+  if ($obj1["type"] <> "application/pdf"){
                 echo "The file extension must be .pdf";
                 exit(1);
         }
-        $filecount = trim(shell_exec('ls *pm-*.pdf|sort -rn|sed '/^0000/d'|head -1|cut -b 1-4'));
-        $filecount += 1;
-        $filecount = sprintf('%04d',$filecount);
-        $filename1 = $filecount ."pm-". pathinfo(basename($_FILES["fileToUpload1"]["name"]))['filename'];//filename without extension
-        $target_file1 = $filecount ."pm-". basename($_FILES["fileToUpload1"]["name"]);//path to store orig file
-        echo $filename1."<br>".$target_file1;
+        $filename = date("ymd-His") ."-". pathinfo(basename($obj1["name"]))['filename'];//filename without extension
+        $target_file = date("ymd-His") ."-". basename($obj1["name"]);//path to store orig file
+
         $uploadOk = 1;
-        /*$imageFileType = pathinfo($target_file,PATHINFO_EXTENSION);
-        // Check if image file is a actual image or fake image
-        if(isset($_POST["submit"])) {
-            $check = getimagesize($_FILES["fileToUpload1"]["tmp_name"]);
-            if($check !== false) {
-                echo "File is an image - " . $check["mime"] . ".";
-                $uploadOk = 1;
-            } else {
-                echo "File is not an image.";
-                $uploadOk = 0;
-            }
-        }*/
-        /*// Check if file already exists
-        if (file_exists($target_file)) {
-            echo "Sorry, file already exists.";
-            $uploadOk = 0;
-        }*/
-        /*// Check file size
-        if ($_FILES["fileToUpload"]["size"] > 20000000) {
-            echo "Sorry, your file is too large. 20MB max";
-            $uploadOk = 0;
-        }*/
-        /*// Allow certain file formats
-        if($imageFileType != "jpg" && $imageFileType != "png" && $imageFileType != "jpeg"
-        && $imageFileType != "gif" ) {
-            echo "Sorry, only JPG, JPEG, PNG & GIF files are allowed.";
-            $uploadOk = 0;
-        }*/
         // Check if $uploadOk is set to 0 by an error
         if ($uploadOk == 0) {
-            echo "Sorry, your file was not uploaded.";
-        // if everything is ok, try to upload file
+                echo "Sorry, your file ".$filename." was not uploaded.";
+        // // if everything is ok, try to upload file
         } else {
-            if (move_uploaded_file($_FILES["fileToUpload"]["tmp_name"], $target_file)) {
-                echo "The file ". basename( $_FILES["fileToUpload"]["name"]). " has been uploaded. -> starting to convert";
-                $output = shell_exec("tr-pdfshrink.sh " . $filename . ".pdf");
-                echo "<pre>$output</pre>";
-                $link= "<a href=\"".$target_dir . $filename. "_small.pdf\">".$filename. "_small.pdf</a>";
-                echo $link;
-            } else {
-                echo "Sorry, there was an error uploading your file.";
-            }
+                if (move_uploaded_file($obj1["tmp_name"], $target_file)) {
+                        // sprintf "The file ". basename( obj1["name"]). " has been uploaded.";
+                        return $filename;
+                } else {
+                        echo "Sorry, there was an error uploading your file.";
+                        return 0;
+                }
         }
 }
+
+function debug_to_console( $data ) {
+    $output = $data;
+    if ( is_array( $output ) )
+        $output = implode( ',', $output);
+
+    echo "<script>console.log( 'Debug Objects: " . $output . "' );</script>";
+}
 ?>
+<br>
 <a href="uploads/"> See all files </a>
 
 </body>
